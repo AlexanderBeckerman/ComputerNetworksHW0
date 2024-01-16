@@ -24,10 +24,12 @@ def check_credentials(path, enteredUser, enteredPass):
             # Add the username and password to the dictionary
             user_dict[username] = password
 
-    if user_dict[enteredUser] == enteredPass:
+    if enteredUser not in list(user_dict.keys()):
+        print("wrong user name")
+    elif user_dict[enteredUser] == enteredPass:
         print ("log in - successfull")
     else:
         print("wrong password")
 
 
-check_credentials("users_file.txt", "Alice", "BetT3RpAas")
+check_credentials("users_file.txt", "Daniel", "BetT3RpAas")
