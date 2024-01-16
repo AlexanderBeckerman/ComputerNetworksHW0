@@ -14,13 +14,20 @@ def main():
         port = args[2]
     user_file_path = args[1]
 
+def check_credentials(path, enteredUser, enteredPass):
     user_dict = {}
-    with open(user_file_path, 'r') as file:
+    with open(path, 'r') as file:
         for line in file:
             # Split each line into username and password using tab as the delimiter
-            username, password = line.strip().split('\t')
+            username, password = line.strip().split()
 
             # Add the username and password to the dictionary
             user_dict[username] = password
 
-    print(user_dict)
+    if user_dict[enteredUser] == enteredPass:
+        print ("log in - successfull")
+    else:
+        print("wrong password")
+
+
+check_credentials("users_file.txt", "Alice", "BetT3RpAas")
