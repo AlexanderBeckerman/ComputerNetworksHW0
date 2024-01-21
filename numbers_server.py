@@ -61,7 +61,7 @@ def main():
                         bytes_to_read)  # receive each time the amount of data we have left to read
                     if data_received == 0:
                         handle_error(sock, connected_clients)
-                        sockets_data.pop()
+                        sockets_data.pop(sock)
                         continue
 
                     sockets_data[sock]['data_read'] += data_received
@@ -80,7 +80,7 @@ def main():
                         sockets_data.pop(sock)
                         continue
                     response = response.encode()
-                    data_to_send = struct.pack(">H", len(response)) + response
+                    data_to_send = struct.pack(">H", len(response)) + response # concatenate our response size with the response
                     bytes_sent = sendall(sock, data_to_send) # Yonatan said we can assume this doesn't block so we send here
                     if bytes_sent < len(data_to_send):
                         handle_error(sock, connected_clients)
@@ -114,7 +114,7 @@ def sendall(sock, data):
         if bytesSent == 0:
             return 0  # if 0 bytes were sent it means the connection was closed
         total += bytesSent
-        bytesleft -= bytesleft
+        bytesleft -= bytesSent
 
     return total
 
@@ -126,8 +126,6 @@ def handle_error(sock, connected_clients):
 
 
 def handle_response(user_input, user_dict):
-    if user_input == "quit":
-        return "quit"
     if ":" not in user_input:
         return ERROR_MSG
     new_input = user_input.strip().split(":")
