@@ -6,6 +6,7 @@ import errno
 MSG_LEN_HEADER = 2
 ERR_MSG = "ERROR IN HANDLING CLIENT, CLOSING CONNECTION..."
 
+
 def main():
     args = sys.argv
     hostname = ''
@@ -36,7 +37,7 @@ def main():
             print(error.strerror)
             exit(1)
 
-    while True:
+    while True:  # authentication loop
         username = input()
         password = input()
         user_pass = username + ":" + password  # we turn it into this format so we can handle it in the server
@@ -49,15 +50,13 @@ def main():
         else:
             print("Failed to login.")
 
-
-    while True:
+    while True:  # sending commands loop
         command = input()
         send_message(command, client_socket)
         if command == 'quit':
             client_socket.close()
-            exit(1)
+            exit(0)
         print(receive_message(client_socket))
-
 
 
 def recvall(client_socket, data_len):
@@ -95,7 +94,6 @@ def receive_message(client_socket):
     bytes_received = recvall(client_socket, MSG_LEN_HEADER)  # get the welcome message length
     msg_len = struct.unpack(">h", bytes_received[:2])[0]
     msg = recvall(client_socket, msg_len).decode()
-    print(f"received msg : {msg} of length {len(msg)}")
     if len(msg) == 0 or msg == ERR_MSG:
         print("ERROR SENDING MESSAGE, CLOSING CONNECTION")
         client_socket.close()

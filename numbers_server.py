@@ -77,9 +77,7 @@ def main():
                         data = sockets_data[sock.fileno()]['data_read'].decode()
                         print(data)
                         if data == "quit":
-                            connected_clients.remove(sock)
-                            sockets_data.pop(sock.fileno())
-                            sock.close()
+                            handle_error(sock, connected_clients, sockets_data)
                             continue
                         response = handle_response(data, user_dict, sockets_data, sock)
                         if response == ERROR_MSG:
@@ -102,14 +100,12 @@ def main():
                     handle_error(sock, connected_clients, sockets_data)
 
 
-
 def check_credentials(enteredUser, enteredPass, user_dict):
     if enteredUser not in list(user_dict.keys()):
         return False
-    elif user_dict[enteredUser] == enteredPass:
+    if user_dict[enteredUser] == enteredPass:
         return True
-    else:
-        return False
+    return False
 
 
 def init_new_sock(sockets_data, sock):
@@ -147,8 +143,7 @@ def handle_response(user_input, user_dict, sockets_data, sock):
     if ":" not in user_input:
         return ERROR_MSG
     new_input = user_input.strip().split(":")
-    if len(new_input) == 4 and new_input[0] == "User" and new_input[
-        2] == "Password":  # authentication attempt from client
+    if len(new_input) == 4 and new_input[0] == "User" and new_input[2] == "Password":  # auth attempt by client
         username = new_input[1]
         password = new_input[3]
         if check_credentials(username, password, user_dict):
@@ -158,7 +153,7 @@ def handle_response(user_input, user_dict, sockets_data, sock):
             return "Failed to login."
     elif len(new_input) == 2 and sockets_data[sock.fileno()]['logged'] == 1:  # else if it's a command to the server
         command = new_input[0]
-        command_input = new_input[1]
+        command_input = new_input[1].strip()
         return handle_command(command, command_input)
 
     else:
@@ -170,7 +165,7 @@ def handle_command(command, command_input):
         if parse_calculate(command_input) == ERROR_MSG:
             return ERROR_MSG
         else:
-            x, y, z = parse_calculate(command_input)
+            x, y, z = parse_calculate(command_input.replace(" ", ""))
             return calculate(int(x), y, int(z))
 
     elif command == "is_palindrome":
