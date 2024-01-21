@@ -42,8 +42,8 @@ def main():
                 connected_clients.append(client_socket)
                 init_new_sock(sockets_data, sock)
                 welcome_msg = "Welcome! Please log in"
-                bytes_sent = sendall(client_socket, welcome_msg.encode('utf-8'))
-                if bytes_sent < len(welcome_msg.encode('utf-8')):
+                bytes_sent = sendall(client_socket, welcome_msg.encode())
+                if bytes_sent < len(welcome_msg.encode()):
                     handle_error(client_socket, connected_clients)
                     sockets_data.pop(client_socket)
             else:
@@ -57,17 +57,23 @@ def main():
 
                 bytes_to_read = sockets_data[sock]['data_length'] - len(sockets_data[sock]['data_read'])
                 if bytes_to_read > 0:
-                    data_recieved = sock.recv(bytes_to_read)  # receive each time the amount of data we have left to read
-                    if data_recieved == 0:
+                    data_received = sock.recv(
+                        bytes_to_read)  # receive each time the amount of data we have left to read
+                    if data_received == 0:
                         handle_error(sock, connected_clients)
                         sockets_data.pop()
                         continue
 
-                    sockets_data[sock]['data_read'] += data_recieved
-                    bytes_to_read -= len(data_recieved)
+                    sockets_data[sock]['data_read'] += data_received
+                    bytes_to_read -= len(data_received)
 
                 if bytes_to_read == 0:  # if we got the entire message, handle it
                     data = sockets_data[sock]['data_read'].decode()
+                    if data == "quit":
+                        connected_clients.remove(sock)
+                        sockets_data.pop(sock)
+                        sock.close()
+                        continue
                     response = handle_response(data, user_dict)
                     if response == ERROR_MSG:
                         handle_error(sock, connected_clients)
@@ -75,16 +81,13 @@ def main():
                         continue
                     response = response.encode()
                     data_to_send = struct.pack(">H", len(response)) + response
-                    bytes_sent = sendall(sock, data_to_send)
+                    bytes_sent = sendall(sock, data_to_send) # Yonatan said we can assume this doesn't block so we send here
                     if bytes_sent < len(data_to_send):
                         handle_error(sock, connected_clients)
                         sockets_data.pop(sock)
                         continue
-                    sockets_data[sock]['data_read'] = b'' # reset the entry when we are done handling the response
+                    sockets_data[sock]['data_read'] = b''  # reset the entry when we are done handling the response
                     sockets_data[sock]['data_length'] = -1
-
-                data = recvall(sock, sockets_data[sock]['data_length'])
-                data = data.decode()
 
 
 def check_credentials(enteredUser, enteredPass, user_dict):
@@ -116,21 +119,15 @@ def sendall(sock, data):
     return total
 
 
-def recvall(sock, data_length):
-    return
-
-
 def handle_error(sock, connected_clients):
     print(ERROR_MSG)
     connected_clients.remove(sock)
     sock.close()
 
 
-def handle_login(socket, username, password, user_dict):
-    flag = check_credentials(username, password, user_dict)
-
-
 def handle_response(user_input, user_dict):
+    if user_input == "quit":
+        return "quit"
     if ":" not in user_input:
         return ERROR_MSG
     new_input = user_input.strip().split(":")
@@ -152,16 +149,32 @@ def handle_response(user_input, user_dict):
 
 def handle_command(command, command_input):
     if command == "calculate":
-        x, y, z = parse_calcualte(command_input)
-        return calculate(x, y, z)
-    elif command == 'is_palindrome':
-        return is_palindrome(command_input)
+        if parse_calculate(command_input) == ERROR_MSG:
+            return ERROR_MSG
+        else:
+            x, y, z = parse_calculate(command_input)
+            return calculate(int(x), y, int(z))
+
+    elif command == "is_palindrome":
+        if parse_is_palindrome_or_primary(command_input) == ERROR_MSG:
+            return ERROR_MSG
+        else:
+            x = parse_is_palindrome_or_primary(command_input)
+            return is_palindrome(int(x))
+
     elif command == "is_primary":
-        return is_primary(command_input)
+        if parse_is_palindrome_or_primary(command_input) == ERROR_MSG:
+            return ERROR_MSG
+        else:
+            x = parse_is_palindrome_or_primary(command_input)
+            return is_primary(int(x))
+
+    else:
+        return ERROR_MSG
 
 
+# ---- COMMAND HANDLING FUNCTIONS ----
 def calculate(x, y, z):
-    ## do we need to check if the input is correct?
     if z == '+':
         st_answer = "Response: " + str(x + y) + "."
         return st_answer
@@ -177,7 +190,6 @@ def calculate(x, y, z):
 
 
 def is_palindrome(x):
-    ## do we need to check if the input is correct?
     if (str(x) == str(x)[::-1]):
         return "Response: Yes."
     else:
@@ -185,7 +197,6 @@ def is_palindrome(x):
 
 
 def is_primary(x):
-    ## do we need to check if the input is correct?
     if x <= 1:
         return "Response: No."
 
@@ -194,6 +205,43 @@ def is_primary(x):
             return "Response: No."
 
     return "Response: Yes."
+
+
+def parse_calculate(input):
+    x = ""
+    y = ""
+    z = ""
+    s = 0
+    for i in range(len(input)):
+        if input[i].isdigit():
+            x = x + input[i]
+            s += 1
+        elif input[i] == '+' or input[i] == '-' or input[i] == '/' or input[i] == '*':
+            y = input[i]
+            s += 1
+            break
+        else:
+            return ERROR_MSG
+
+    for i in range(s, len(input)):
+        if input[i].isdigit():
+            z = z + input[i]
+        else:
+            return ERROR_MSG
+
+    if y == "" or z == "":
+        return ERROR_MSG
+
+    return x, y, z
+
+
+def parse_is_palindrome_or_primary(input):
+    x = ""
+    for char in input:
+        if char.isdigit() == False:
+            return ERROR_MSG
+
+    return input
 
 
 main()
