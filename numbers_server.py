@@ -1,3 +1,4 @@
+import errno
 import struct
 from socket import *
 import sys
@@ -35,59 +36,71 @@ def main():
 
     while True:
         readable, w, e = select.select(connected_clients + [listeningSocket], [], [])
-
+        print(connected_clients)
         for sock in readable:
             if sock == listeningSocket:
                 client_socket, client_address = listeningSocket.accept()
                 connected_clients.append(client_socket)
-                init_new_sock(sockets_data, sock)
-                welcome_msg = "Welcome! Please log in"
-                bytes_sent = sendall(client_socket, welcome_msg.encode())
-                if bytes_sent < len(welcome_msg.encode()):
-                    handle_error(client_socket, connected_clients)
-                    sockets_data.pop(client_socket)
+                init_new_sock(sockets_data, client_socket.fileno())
+                msg = "Welcome! Please log in"
+                welcome_msg = struct.pack('>h', len(msg)) + msg.encode()
+                bytes_sent = sendall(client_socket, welcome_msg)
+                if bytes_sent < len(welcome_msg):
+                    handle_error(client_socket, connected_clients, sockets_data)
+                    sockets_data.pop(client_socket.fileno())
             else:
-                if sockets_data[sock]['data_length'] == -1:  # if we have yet to get the incoming data size
-                    data = sock.recv(MSG_LEN_HEADER)  # get the bytes that contain the message length
-                    if len(data) == 0:
-                        handle_error(sock, connected_clients)  # if the client closed the connection
-                        continue
-                    data_len = struct.unpack(">H", data[:MSG_LEN_HEADER])  # get the message length
-                    sockets_data[sock]['data_length'] = data_len
+                try:
+                    if sockets_data[sock.fileno()]['data_length'] == 0:  # if we have yet to get the incoming data size
+                        print("received new data from client!")
+                        try:
+                            data = sock.recv(MSG_LEN_HEADER)  # get the bytes that contain the message length
+                        except:
+                            handle_error(sock, connected_clients, sockets_data)  # if the client closed the connection
+                            continue
+                        data_len = struct.unpack(">h", data[:MSG_LEN_HEADER])[0]  # get the message length
+                        sockets_data[sock.fileno()]['data_length'] = data_len
 
-                bytes_to_read = sockets_data[sock]['data_length'] - len(sockets_data[sock]['data_read'])
-                if bytes_to_read > 0:
-                    data_received = sock.recv(
-                        bytes_to_read)  # receive each time the amount of data we have left to read
-                    if data_received == 0:
-                        handle_error(sock, connected_clients)
-                        sockets_data.pop(sock)
-                        continue
+                    bytes_to_read = sockets_data[sock.fileno()]['data_length'] - len(
+                        sockets_data[sock.fileno()]['data_read'])
+                    if bytes_to_read > 0:
+                        try:
+                            data_received = sock.recv(
+                                bytes_to_read)  # receive each time the amount of data we have left to read
+                        except:
+                            handle_error(sock, connected_clients, sockets_data)
+                            continue
 
-                    sockets_data[sock]['data_read'] += data_received
-                    bytes_to_read -= len(data_received)
+                        sockets_data[sock.fileno()]['data_read'] += data_received
+                        bytes_to_read -= len(data_received)
 
-                if bytes_to_read == 0:  # if we got the entire message, handle it
-                    data = sockets_data[sock]['data_read'].decode()
-                    if data == "quit":
-                        connected_clients.remove(sock)
-                        sockets_data.pop(sock)
-                        sock.close()
-                        continue
-                    response = handle_response(data, user_dict)
-                    if response == ERROR_MSG:
-                        handle_error(sock, connected_clients)
-                        sockets_data.pop(sock)
-                        continue
-                    response = response.encode()
-                    data_to_send = struct.pack(">H", len(response)) + response # concatenate our response size with the response
-                    bytes_sent = sendall(sock, data_to_send) # Yonatan said we can assume this doesn't block so we send here
-                    if bytes_sent < len(data_to_send):
-                        handle_error(sock, connected_clients)
-                        sockets_data.pop(sock)
-                        continue
-                    sockets_data[sock]['data_read'] = b''  # reset the entry when we are done handling the response
-                    sockets_data[sock]['data_length'] = -1
+                    if bytes_to_read == 0:  # if we got the entire message, handle it
+                        data = sockets_data[sock.fileno()]['data_read'].decode()
+                        print(data)
+                        if data == "quit":
+                            connected_clients.remove(sock)
+                            sockets_data.pop(sock.fileno())
+                            sock.close()
+                            continue
+                        response = handle_response(data, user_dict, sockets_data, sock)
+                        if response == ERROR_MSG:
+                            handle_error(sock, connected_clients, sockets_data)
+
+                            continue
+                        response = response.encode()
+                        data_to_send = struct.pack(">h",
+                                                   len(response)) + response  # concatenate our response size with the response
+                        bytes_sent = sendall(sock,
+                                             data_to_send)  # Yonatan said we can assume this doesn't block so we send here
+                        if bytes_sent < len(data_to_send):
+                            handle_error(sock, connected_clients, sockets_data)
+                            sockets_data.pop(sock.fileno())
+                            continue
+                        sockets_data[sock.fileno()][
+                            'data_read'] = b''  # reset the entry when we are done handling the response
+                        sockets_data[sock.fileno()]['data_length'] = 0
+                except:
+                    handle_error(sock, connected_clients, sockets_data)
+
 
 
 def check_credentials(enteredUser, enteredPass, user_dict):
@@ -102,7 +115,8 @@ def check_credentials(enteredUser, enteredPass, user_dict):
 def init_new_sock(sockets_data, sock):
     sockets_data[sock] = {}
     sockets_data[sock]["data_read"] = b''
-    sockets_data[sock]["data_length"] = -1  # default value
+    sockets_data[sock]["data_length"] = 0
+    sockets_data[sock]["logged"] = 0
 
 
 def sendall(sock, data):
@@ -110,33 +124,39 @@ def sendall(sock, data):
     bytesleft = len(data)
 
     while total < len(data):
-        bytesSent = sock.send(data[total:])
-        if bytesSent == 0:
-            return 0  # if 0 bytes were sent it means the connection was closed
+        try:
+            bytesSent = sock.send(data[total:])
+        except:
+            return 0
         total += bytesSent
         bytesleft -= bytesSent
 
     return total
 
 
-def handle_error(sock, connected_clients):
+def handle_error(sock, connected_clients, sockets_data):
     print(ERROR_MSG)
+    data_to_send = struct.pack(">h", len(ERROR_MSG.encode())) + ERROR_MSG.encode()
+    sendall(sock, data_to_send)
     connected_clients.remove(sock)
+    sockets_data.pop(sock.fileno())
     sock.close()
 
 
-def handle_response(user_input, user_dict):
+def handle_response(user_input, user_dict, sockets_data, sock):
     if ":" not in user_input:
         return ERROR_MSG
     new_input = user_input.strip().split(":")
-    if len(new_input) == 4:  # authentication attempt from client
+    if len(new_input) == 4 and new_input[0] == "User" and new_input[
+        2] == "Password":  # authentication attempt from client
         username = new_input[1]
         password = new_input[3]
         if check_credentials(username, password, user_dict):
-            return f"Hi {username}, good to see you."
+            sockets_data[sock.fileno()]['logged'] = 1
+            return "OK"
         else:
             return "Failed to login."
-    elif len(new_input) == 2:  # else if it's a command to the server
+    elif len(new_input) == 2 and sockets_data[sock.fileno()]['logged'] == 1:  # else if it's a command to the server
         command = new_input[0]
         command_input = new_input[1]
         return handle_command(command, command_input)
@@ -173,17 +193,17 @@ def handle_command(command, command_input):
 
 # ---- COMMAND HANDLING FUNCTIONS ----
 def calculate(x, y, z):
-    if z == '+':
-        st_answer = "Response: " + str(x + y) + "."
+    if y == '+':
+        st_answer = "Response: " + str(x + z) + "."
         return st_answer
-    if z == '-':
-        st_answer = "Response: " + str(x - y) + "."
+    if y == '-':
+        st_answer = "Response: " + str(x - z) + "."
         return st_answer
-    if z == '*':
-        st_answer = "Response: " + str(x * y) + "."
+    if y == '*':
+        st_answer = "Response: " + str(x * z) + "."
         return st_answer
-    if z == '/':
-        st_answer = "Response: " + str(x / y) + "."
+    if y == '/':
+        st_answer = "Response: " + str(x / z) + "."
         return st_answer
 
 
