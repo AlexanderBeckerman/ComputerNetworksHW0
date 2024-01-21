@@ -67,9 +67,7 @@ def recvall(client_socket, data_len):
         try:
             bytes_read += client_socket.recv(bytes_left)
         except OSError:
-            print("error reading from socket")
-            client_socket.close()
-            exit(1)
+            return 0
         total += len(bytes_read)
         bytes_left -= len(bytes_read)
     return bytes_read

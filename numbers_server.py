@@ -82,7 +82,6 @@ def main():
                         response = handle_response(data, user_dict, sockets_data, sock)
                         if response == ERROR_MSG:
                             handle_error(sock, connected_clients, sockets_data)
-
                             continue
                         response = response.encode()
                         data_to_send = struct.pack(">h",
