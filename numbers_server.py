@@ -172,7 +172,7 @@ def handle_command(command, command_input):
             return ERROR_MSG
         else:
             x = parse_is_palindrome_or_primary(command_input)
-            return is_palindrome(int(x))
+            return is_palindrome(x)
 
     elif command == "is_primary":
         if parse_is_palindrome_or_primary(command_input) == ERROR_MSG:
@@ -225,6 +225,9 @@ def parse_calculate(input):
     z = ""
     s = 0
     for i in range(len(input)):
+        if i == 0 and input[0] == '-':
+            x += input[0]
+            continue
         if input[i].isdigit():
             x = x + input[i]
             s += 1
@@ -236,6 +239,9 @@ def parse_calculate(input):
             return ERROR_MSG
 
     for i in range(s, len(input)):
+        if i == s and input[s] == '-':
+            z += input[s]
+            continue
         if input[i].isdigit():
             z = z + input[i]
         else:
@@ -248,7 +254,6 @@ def parse_calculate(input):
 
 
 def parse_is_palindrome_or_primary(input):
-    x = ""
     for char in input:
         if char.isdigit() == False:
             return ERROR_MSG
