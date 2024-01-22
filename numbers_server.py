@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import errno
 import struct
 from socket import *
