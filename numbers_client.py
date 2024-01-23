@@ -19,7 +19,7 @@ def main():
         port = 1337
     elif len(args) == 3:
         hostname = args[1]
-        port = args[2]
+        port = int(args[2])
     else:
         print("ERROR IN ARGS COUNT!, EXITING")
         exit(1)
