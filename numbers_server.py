@@ -37,22 +37,19 @@ def main():
     sockets_data = {}
 
     while True:
-        readable, w, e = select.select(connected_clients + [listeningSocket], [], [])
-        print(connected_clients)
+        readable, writable, e = select.select(connected_clients + [listeningSocket], connected_clients, [])
         for sock in readable:
             if sock == listeningSocket:
                 client_socket, client_address = listeningSocket.accept()
                 connected_clients.append(client_socket)
-                init_new_sock(sockets_data, client_socket.fileno())
+                init_new_sock(sockets_data, client_socket)
                 msg = "Welcome! Please log in"
-                welcome_msg = struct.pack('>h', len(msg)) + msg.encode()
-                bytes_sent = sendall(client_socket, welcome_msg)
-                if bytes_sent < len(welcome_msg):
-                    handle_error(client_socket, connected_clients, sockets_data)
-                    sockets_data.pop(client_socket.fileno())
+                sockets_data[client_socket]['data_to_send'] = msg.encode()
             else:
                 try:
-                    if sockets_data[sock.fileno()]['data_length'] == 0:  # if we have yet to get the incoming data size
+                    if len(sockets_data[sock]['data_to_send'] > 0):
+                        continue
+                    if sockets_data[sock]['data_length'] == 0:  # if we have yet to get the incoming data size
                         print("received new data from client!")
                         try:
                             data = sock.recv(MSG_LEN_HEADER)  # get the bytes that contain the message length
@@ -60,10 +57,10 @@ def main():
                             handle_error(sock, connected_clients, sockets_data)  # if the client closed the connection
                             continue
                         data_len = struct.unpack(">h", data[:MSG_LEN_HEADER])[0]  # get the message length
-                        sockets_data[sock.fileno()]['data_length'] = data_len
+                        sockets_data[sock]['data_length'] = data_len
 
-                    bytes_to_read = sockets_data[sock.fileno()]['data_length'] - len(
-                        sockets_data[sock.fileno()]['data_read'])
+                    bytes_to_read = sockets_data[sock]['data_length'] - len(
+                        sockets_data[sock]['data_read'])
                     if bytes_to_read > 0:
                         try:
                             data_received = sock.recv(
@@ -72,11 +69,11 @@ def main():
                             handle_error(sock, connected_clients, sockets_data)
                             continue
 
-                        sockets_data[sock.fileno()]['data_read'] += data_received
+                        sockets_data[sock]['data_read'] += data_received
                         bytes_to_read -= len(data_received)
 
                     if bytes_to_read == 0:  # if we got the entire message, handle it
-                        data = sockets_data[sock.fileno()]['data_read'].decode()
+                        data = sockets_data[sock]['data_read'].decode()
                         print(data)
                         if data == "quit":
                             handle_error(sock, connected_clients, sockets_data)
@@ -86,19 +83,24 @@ def main():
                             handle_error(sock, connected_clients, sockets_data)
                             continue
                         response = response.encode()
-                        data_to_send = struct.pack(">h",
-                                                   len(response)) + response  # concatenate our response size with the response
-                        bytes_sent = sendall(sock,
-                                             data_to_send)  # Yonatan said we can assume this doesn't block so we send here
-                        if bytes_sent < len(data_to_send):
-                            handle_error(sock, connected_clients, sockets_data)
-                            sockets_data.pop(sock.fileno())
-                            continue
-                        sockets_data[sock.fileno()][
-                            'data_read'] = b''  # reset the entry when we are done handling the response
-                        sockets_data[sock.fileno()]['data_length'] = 0
+                        sockets_data[sock]["data_to_send"] = response
+
                 except:
                     handle_error(sock, connected_clients, sockets_data)
+        for sock in writable:
+            if (len(sockets_data[sock]['data_to_send']) == 0) or (len(sockets_data[sock]['data_read']) < sockets_data[sock]['data_length']):
+                continue
+            bytes_sent = send_message(sockets_data[sock]['data_to_send'], sock, sockets_data, connected_clients)
+            if bytes_sent <= 0:
+                continue
+            bytes_left = len(sockets_data[sock]['data_to_send']) - bytes_sent + 2
+            if bytes_left == 0:
+                sockets_data[sock]['data_to_send'] = b''
+                sockets_data[sock][
+                    'data_read'] = b''  # reset the entry when we are done handling the response
+                sockets_data[sock]['data_length'] = 0
+                continue
+            sockets_data[sock]['data_to_send'] = sockets_data[sock]['data_to_send'][-bytes_left:]
 
 
 def check_credentials(enteredUser, enteredPass, user_dict):
@@ -114,6 +116,18 @@ def init_new_sock(sockets_data, sock):
     sockets_data[sock]["data_read"] = b''
     sockets_data[sock]["data_length"] = 0
     sockets_data[sock]["logged"] = 0
+    sockets_data[sock]["data_to_send"] = b''
+
+
+def send_message(response, sock, sockets_data, connected_clients):
+    data_to_send = struct.pack(">h",
+                               len(response)) + response  # concatenate our response size with the response
+    bytes_sent = sock.send(data_to_send)
+    if bytes_sent <= 0:
+        handle_error(sock, connected_clients, sockets_data)
+        sockets_data.pop(sock)
+        return -1
+    return bytes_sent
 
 
 def sendall(sock, data):
@@ -136,7 +150,7 @@ def handle_error(sock, connected_clients, sockets_data):
     data_to_send = struct.pack(">h", len(ERROR_MSG.encode())) + ERROR_MSG.encode()
     sendall(sock, data_to_send)
     connected_clients.remove(sock)
-    sockets_data.pop(sock.fileno())
+    sockets_data.pop(sock)
     sock.close()
 
 
@@ -148,11 +162,11 @@ def handle_response(user_input, user_dict, sockets_data, sock):
         username = new_input[1]
         password = new_input[3]
         if check_credentials(username, password, user_dict):
-            sockets_data[sock.fileno()]['logged'] = 1
+            sockets_data[sock]['logged'] = 1
             return "OK"
         else:
             return "Failed to login."
-    elif len(new_input) == 2 and sockets_data[sock.fileno()]['logged'] == 1:  # else if it's a command to the server
+    elif len(new_input) == 2 and sockets_data[sock]['logged'] == 1:  # else if it's a command to the server
         command = new_input[0]
         command_input = new_input[1].strip()
         return handle_command(command, command_input)
@@ -167,7 +181,7 @@ def handle_command(command, command_input):
             return ERROR_MSG
         else:
             x, y, z = parse_calculate(command_input.replace(" ", ""))
-            print(int(x), y , int(z))
+            print(int(x), y, int(z))
             return calculate(int(x), y, int(z))
 
     elif command == "is_palindrome":
