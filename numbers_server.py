@@ -23,16 +23,25 @@ def main():
     user_file_path = args[1]
 
     user_dict = {}
-    with open(user_file_path, 'r') as file:
-        for line in file:
-            # Split each line into username and password using tab as the delimiter
-            username, password = line.strip().split()
-            # Add the username and password to the dictionary
-            user_dict[username] = password
+    try:
+        with open(user_file_path, 'r') as file:
+            for line in file:
+                # Split each line into username and password using tab as the delimiter
+                username, password = line.strip().split()
+                # Add the username and password to the dictionary
+                user_dict[username] = password
+    except:
+        print("error reading file!")
+        exit(1)
+    try:
+        listeningSocket = socket(AF_INET, SOCK_STREAM)
+        listeningSocket.bind(('', port))
+        listeningSocket.listen(5)
+    except:
+        print("Error creating socket")
+        listeningSocket.close()
+        exit(1)
 
-    listeningSocket = socket(AF_INET, SOCK_STREAM)
-    listeningSocket.bind(('', port))
-    listeningSocket.listen(5)
     connected_clients = []
     sockets_data = {}
 
@@ -64,7 +73,7 @@ def main():
 
                     bytes_to_read = sockets_data[sock.fileno()]['data_length'] - len(
                         sockets_data[sock.fileno()]['data_read'])
-                    if bytes_to_read > 0:
+                    if bytes_to_read > 0:  # check if we need to recv from the socket
                         try:
                             data_received = sock.recv(
                                 bytes_to_read)  # receive each time the amount of data we have left to read
@@ -167,7 +176,7 @@ def handle_command(command, command_input):
             return ERROR_MSG
         else:
             x, y, z = parse_calculate(command_input.replace(" ", ""))
-            print(int(x), y , int(z))
+            print(int(x), y, int(z))
             return calculate(int(x), y, int(z))
 
     elif command == "is_palindrome":
