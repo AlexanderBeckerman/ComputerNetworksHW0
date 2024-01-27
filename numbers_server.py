@@ -176,7 +176,8 @@ def handle_command(command, command_input):
             return ERROR_MSG
         else:
             x, y, z = parse_calculate(command_input.replace(" ", ""))
-            print(int(x), y, int(z))
+            if y == '/' and z == '0': # check for division by zero
+                return ERROR_MSG
             return calculate(int(x), y, int(z))
 
     elif command == "is_palindrome":
