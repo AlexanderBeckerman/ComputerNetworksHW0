@@ -155,7 +155,7 @@ def handle_response(user_input, user_dict, sockets_data, sock):
     new_input = user_input.split(":")
     if len(new_input) == 4 and new_input[0] == "User" and new_input[2] == "Password":  # auth attempt by client
         if len(new_input[1])==0 or len(new_input[3])==0 :
-            return "Failed to login."
+            return ERROR_MSG
         if  new_input[1][0]!=" " or new_input[3][0]!=" ":
             return ERROR_MSG
         username = new_input[1][1:]
