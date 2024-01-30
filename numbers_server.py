@@ -19,7 +19,7 @@ def main():
         exit(1)
 
     if len(args) == 3:
-        port = args[2]
+        port = int(args[2])
     user_file_path = args[1]
 
     user_dict = {}
@@ -33,14 +33,14 @@ def main():
     except:
         print("error reading file!")
         exit(1)
-    try:
-        listeningSocket = socket(AF_INET, SOCK_STREAM)
-        listeningSocket.bind(('', port))
-        listeningSocket.listen(5)
-    except:
-        print("Error creating socket")
-        listeningSocket.close()
-        exit(1)
+    # try:
+    listeningSocket = socket(AF_INET, SOCK_STREAM)
+    listeningSocket.bind(('localhost', port))
+    listeningSocket.listen(5)
+    # except:
+    #     print("Error creating socket")
+    #     listeningSocket.close()
+    #     exit(1)
 
     connected_clients = []
     sockets_data = {}
