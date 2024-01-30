@@ -42,18 +42,15 @@ def main():
     while True:  # authentication loop
         username = input()
         password = input()
-        if len(username) < 6 or len(password) < 10 or "User: " != username[0:6] or "Password: " != password[0:10]:
-            print("Failed to login.")
+        user_pass = username + ":" + password  # we turn it into this format so we can handle it in the server
+        send_message(user_pass, client_socket)
+        login_msg = receive_message(client_socket)
+        success = "Hi " + str(username.strip().split(":")[1]) + ", good to see you."
+        if login_msg == "OK":
+            print(success)
+            break
         else:
-            user_pass = "User:"+username[6:]+":"+"Password:"+password[10:]  # we turn it into this format so we can handle it in the server
-            send_message(user_pass, client_socket)
-            login_msg = receive_message(client_socket)
-            success = "Hi " + str(username.strip().split(":")[1].replace(" ","")) + ", good to see you."
-            if login_msg == "OK":
-                print(success)
-                break
-            else:
-                print("Failed to login.")
+            print("Failed to login.")
 
     while True:  # sending commands loop
         command = input()

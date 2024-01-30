@@ -152,10 +152,14 @@ def handle_error(sock, connected_clients, sockets_data):
 def handle_response(user_input, user_dict, sockets_data, sock):
     if ":" not in user_input:
         return ERROR_MSG
-    new_input = user_input.strip().split(":")
+    new_input = user_input.split(":")
     if len(new_input) == 4 and new_input[0] == "User" and new_input[2] == "Password":  # auth attempt by client
-        username = new_input[1]
-        password = new_input[3]
+        if len(new_input[1])==0 or len(new_input[3])==0 :
+            return "Failed to login."
+        if  new_input[1][0]!=" " or new_input[3][0]!=" ":
+            return ERROR_MSG
+        username = new_input[1][1:]
+        password = new_input[3][1:]
         if check_credentials(username, password, user_dict):
             sockets_data[sock.fileno()]['logged'] = 1
             return "OK"
@@ -163,12 +167,18 @@ def handle_response(user_input, user_dict, sockets_data, sock):
             return "Failed to login."
     elif len(new_input) == 2 and sockets_data[sock.fileno()]['logged'] == 1:  # else if it's a command to the server
         command = new_input[0]
-        command_input = new_input[1].strip()
-        return handle_command(command, command_input)
+        print(command)
+        command_input = new_input[1]
+        print(command_input)
+        if len(command_input) == 0:
+            return ERROR_MSG
+        if command_input[0] != " ": #if the first char after the : is not " " then its an error
+            return ERROR_MSG
+        print(command_input)
+        return handle_command(command, command_input[1:]) #we pass the input to the command after the " "
 
     else:
         return ERROR_MSG
-
 
 def handle_command(command, command_input):
     if command == "calculate":
