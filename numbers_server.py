@@ -33,21 +33,20 @@ def main():
     except:
         print("error reading file!")
         exit(1)
-    # try:
-    listeningSocket = socket(AF_INET, SOCK_STREAM)
-    listeningSocket.bind(('localhost', port))
-    listeningSocket.listen(5)
-    # except:
-    #     print("Error creating socket")
-    #     listeningSocket.close()
-    #     exit(1)
+    try:
+        listeningSocket = socket(AF_INET, SOCK_STREAM)
+        listeningSocket.bind(('localhost', port))
+        listeningSocket.listen(5)
+    except:
+        print("Error creating socket")
+        listeningSocket.close()
+        exit(1)
 
     connected_clients = []
     sockets_data = {}
 
     while True:
         readable, w, e = select.select(connected_clients + [listeningSocket], [], [])
-        print(connected_clients)
         for sock in readable:
             if sock == listeningSocket:
                 client_socket, client_address = listeningSocket.accept()
@@ -62,7 +61,6 @@ def main():
             else:
                 try:
                     if sockets_data[sock.fileno()]['data_length'] == 0:  # if we have yet to get the incoming data size
-                        print("received new data from client!")
                         try:
                             data = sock.recv(MSG_LEN_HEADER)  # get the bytes that contain the message length
                         except:
@@ -86,7 +84,6 @@ def main():
 
                     if bytes_to_read == 0:  # if we got the entire message, handle it
                         data = sockets_data[sock.fileno()]['data_read'].decode()
-                        print(data)
                         if data == "quit":
                             handle_error(sock, connected_clients, sockets_data)
                             continue
@@ -141,7 +138,6 @@ def sendall(sock, data):
 
 
 def handle_error(sock, connected_clients, sockets_data):
-    print(ERROR_MSG)
     data_to_send = struct.pack(">h", len(ERROR_MSG.encode())) + ERROR_MSG.encode()
     sendall(sock, data_to_send)
     connected_clients.remove(sock)
@@ -167,14 +163,11 @@ def handle_response(user_input, user_dict, sockets_data, sock):
             return "Failed to login."
     elif len(new_input) == 2 and sockets_data[sock.fileno()]['logged'] == 1:  # else if it's a command to the server
         command = new_input[0]
-        print(command)
         command_input = new_input[1]
-        print(command_input)
         if len(command_input) == 0:
             return ERROR_MSG
         if command_input[0] != " ": #if the first char after the : is not " " then its an error
             return ERROR_MSG
-        print(command_input)
         return handle_command(command, command_input[1:]) #we pass the input to the command after the " "
 
     else:
@@ -243,7 +236,6 @@ def is_primary(x):
 
 
 def parse_calculate(input):
-    print("inside parse calc")
     x = ""
     y = ""
     z = ""

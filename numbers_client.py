@@ -95,7 +95,7 @@ def receive_message(client_socket):
     msg_len = struct.unpack(">h", bytes_received[:2])[0]
     msg = recvall(client_socket, msg_len).decode()
     if len(msg) == 0 or msg == ERR_MSG:
-        print("ERROR SENDING MESSAGE, CLOSING CONNECTION")
+        print("ERROR READING MESSAGE, CLOSING CONNECTION")
         client_socket.close()
         exit(1)
     return msg
